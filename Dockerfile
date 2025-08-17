@@ -1,38 +1,26 @@
-# Etapa 1: Build nativo com GraalVM oficial + Maven
-FROM ghcr.io/graalvm/graalvm-ce:latest AS builder
-
-# Instala Maven e ferramentas básicas
-RUN microdnf install -y maven git && microdnf clean all
+# Stage 1: Build with GraalVM Native Image (ARM64 or AMD64)
+FROM vegardit/graalvm-maven:latest-java24 as builder
 
 WORKDIR /app
 
-# Copia metadados Maven primeiro para cache
-COPY .mvn .mvn
-COPY mvnw pom.xml ./
-
-# Resolve dependências
-RUN ./mvnw dependency:resolve
-
-# Copia o restante do projeto
+# Copy only necessary files to speed up Docker builds
 COPY . .
 
-# Compila nativo sem rodar testes
+# Build native image using Maven
 RUN ./mvnw -Pnative native:compile -DskipTests
 
-# Etapa 2: Runtime mínimo baseado em Debian slim
+# Stage 2: Create minimal runtime container
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y zlib1g && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copia o binário nativo gerado
-COPY --from=builder /app/target/native/backend-native /app/app
+# Copy binary from previous stage
+COPY --from=builder /app/target/rinha-backend-2025-java-spring-graalvm app
 
-# Garante que seja executável
-RUN chmod +x /app/app
-
-# Porta padrão
+# Expose port
 EXPOSE 8080
 
-CMD ["/app/app"]
+# Run binary
+CMD ["./app"]

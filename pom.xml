@@ -72,8 +72,8 @@
 						<artifactId>native-maven-plugin</artifactId>
 						<version>0.11.0</version>
 						<configuration>
-							<imageName>backend-native</imageName>
-							<outputDirectory>${project.build.directory}/native</outputDirectory>
+							<imageName>rinha-backend-2025-java-spring-graalvm</imageName>
+							<outputDirectory>${project.build.directory}</outputDirectory>
 						</configuration>
 					</plugin>
 				</plugins>
