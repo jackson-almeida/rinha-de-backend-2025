@@ -1,7 +1,7 @@
 # Etapa 1: Build nativo com GraalVM oficial + Maven
-FROM ghcr.io/graalvm/graalvm-ce:ol8-java24-23.3.4 AS builder
+FROM ghcr.io/graalvm/graalvm-ce:latest AS builder
 
-# Instala Maven (caso não venha com Maven) e ferramentas básicas
+# Instala Maven e ferramentas básicas
 RUN microdnf install -y maven git && microdnf clean all
 
 WORKDIR /app
