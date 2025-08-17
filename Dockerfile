@@ -1,30 +1,38 @@
-# Stage 1: Build nativo
-FROM ghcr.io/graalvm/native-image-community:21 AS native-build
-WORKDIR /workspace
+# Etapa 1: Build nativo com GraalVM oficial + Maven
+FROM ghcr.io/graalvm/graalvm-ce:ol8-java24-23.3.4 AS builder
 
-# Copiar Maven Wrapper e pom.xml
-COPY mvnw mvnw.cmd pom.xml ./
-COPY .mvn .mvn
-RUN chmod +x mvnw
+# Instala Maven (caso não venha com Maven) e ferramentas básicas
+RUN microdnf install -y maven git && microdnf clean all
 
-# Baixar dependências
-RUN ./mvnw -B -DskipTests dependency:go-offline || true
-
-# Copiar código fonte
-COPY src ./src
-
-# Compilar nativo
-RUN ./mvnw -B -DskipTests -Pnative native:compile
-
-# Normalizar binário
-RUN cp target/native/backend-native /workspace/app
-
-# Stage 2: Runtime minimalista
-FROM gcr.io/distroless/cc AS runtime
 WORKDIR /app
 
-# Copiar binário do estágio de build
-COPY --from=native-build /workspace/app /app/app
+# Copia metadados Maven primeiro para cache
+COPY .mvn .mvn
+COPY mvnw pom.xml ./
 
+# Resolve dependências
+RUN ./mvnw dependency:resolve
+
+# Copia o restante do projeto
+COPY . .
+
+# Compila nativo sem rodar testes
+RUN ./mvnw -Pnative native:compile -DskipTests
+
+# Etapa 2: Runtime mínimo baseado em Debian slim
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y zlib1g && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copia o binário nativo gerado
+COPY --from=builder /app/target/native/backend-native /app/app
+
+# Garante que seja executável
+RUN chmod +x /app/app
+
+# Porta padrão
 EXPOSE 8080
-ENTRYPOINT ["/app/app"]
+
+CMD ["/app/app"]

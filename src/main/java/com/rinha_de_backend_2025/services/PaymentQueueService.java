@@ -1,8 +1,9 @@
 package com.rinha_de_backend_2025.services;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rinha_de_backend_2025.models.PaymentWireRequest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,10 +14,17 @@ public class PaymentQueueService {
     private static final String PAYMENT_QUEUE = "payment_queue";
 
     @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
+    private StringRedisTemplate redisTemplate;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public void enqueue(PaymentWireRequest request) {
-        redisTemplate.opsForList().rightPush(PAYMENT_QUEUE, request);
+        try {
+            String json = objectMapper.writeValueAsString(request);
+            redisTemplate.opsForList().rightPush(PAYMENT_QUEUE, json);
+        } catch (Exception e) {
+            System.err.println("Erro ao enfileirar pagamento: " + e.getMessage());
+        }
     }
 
     public PaymentWireRequest dequeue() {
@@ -26,16 +34,25 @@ public class PaymentQueueService {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        return (PaymentWireRequest) response;
+        return parsePaymentRequest(response);
     }
 
-    public Object blockingDequeue() {
-        System.out.println("## Antes do leftPop # Thread: " + Thread.currentThread().getName());
+    public PaymentWireRequest blockingDequeue() {
         Object result = redisTemplate.opsForList()
-                .leftPop(PAYMENT_QUEUE, 5, TimeUnit.SECONDS); // timeout infinito
-        System.out.println("# Depois do leftPop # Thread: " + Thread.currentThread().getName());
-        System.out.println("# Result: " + result);
-        return result;
+                .leftPop(PAYMENT_QUEUE, 5, TimeUnit.SECONDS);
+        return parsePaymentRequest(result);
+    }
+
+    private PaymentWireRequest parsePaymentRequest(Object result) {
+        if (result instanceof String) {
+            try {
+                return objectMapper.readValue((String) result, PaymentWireRequest.class);
+            } catch (Exception e) {
+                System.err.println("Erro ao fazer parse do pagamento: " + e.getMessage());
+                return null;
+            }
+        }
+        return null;
     }
 
     public long getQueueSize() {

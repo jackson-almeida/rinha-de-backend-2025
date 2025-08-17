@@ -4,8 +4,6 @@ services:
   redis:
     image: redis:7.0-alpine
     container_name: redis-server
-    ports:
-      - "6379:6379"
     restart: unless-stopped
     deploy:
       resources:
@@ -14,17 +12,16 @@ services:
           memory: "40MB"
     networks:
       - backend-rinha
-#      - payment-processor
+      - payment-processor
 
   backend1:
-    image: backend-app:latest
-    build:
-      context: .
+    build: .
     container_name: backend1
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - BACKEND_MASTER=true
+      - PAYMENT_WORKERS_COUNT=2
     deploy:
       resources:
         limits:
@@ -34,17 +31,16 @@ services:
       - redis
     networks:
       - backend-rinha
-#      - payment-processor
+      - payment-processor
 
   backend2:
-    image: backend-app:latest
-    build:
-      context: .
+    build: .
     container_name: backend2
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - BACKEND_MASTER=false
+      - PAYMENT_WORKERS_COUNT=2
     deploy:
       resources:
         limits:
@@ -54,7 +50,7 @@ services:
       - redis
     networks:
       - backend-rinha
-#      - payment-processor
+      - payment-processor
 
   nginx:
     image: nginx:latest
@@ -72,13 +68,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.15"
+          memory: "30MB"
     networks:
       - backend-rinha
-#      - payment-processor
 
 networks:
   backend-rinha:
     name: backend-rinha
     driver: bridge
-#  payment-processor:
-#    external: true
+  payment-processor:
+    external: true

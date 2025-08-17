@@ -7,15 +7,17 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Map;
 
 @Service
 public class PaymentService {
 
     private final PaymentQueueService paymentQueueService;
+    private final PaymentsProcessedService paymentsProcessedService;
 
-    public PaymentService(PaymentQueueService paymentQueueService) {
+    public PaymentService(PaymentQueueService paymentQueueService, 
+                         PaymentsProcessedService paymentsProcessedService) {
         this.paymentQueueService = paymentQueueService;
+        this.paymentsProcessedService = paymentsProcessedService;
     }
 
     public void processPayment(PaymentWireRequest payment) {
@@ -28,10 +30,16 @@ public class PaymentService {
                 nowInSaoPaulo
         );
 
+        // Apenas enfileira o pagamento para processamento assíncrono
         paymentQueueService.enqueue(updatedPayment);
     }
 
-    public PaymentSummary getPaymentSummary() {
-        return new PaymentSummary(0, 0.0, Map.of());
+    public PaymentSummary getPaymentSummary(ZonedDateTime from, ZonedDateTime to) {
+        PaymentsProcessedService.PaymentSummaryData data = paymentsProcessedService.getPaymentSummary(from, to);
+        
+        return new PaymentSummary(
+            new PaymentSummary.DefaultProcessor(data.defaultTotalRequests, data.defaultTotalAmount),
+            new PaymentSummary.FallbackProcessor(data.fallbackTotalRequests, data.fallbackTotalAmount)
+        );
     }
 }
